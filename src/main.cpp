@@ -46,7 +46,37 @@ void line(const Vec2i& p1, const Vec2i& p2, TGAImage& image, TGAColor color)
     Bresenham(p1.x, p1.y, p2.x, p2.y, image, color);
 }
 
-void triangle(Vec2i t0, Vec2i t1, Vec2i t2, TGAImage& image, TGAColor color) {
+Vec3f barycentric(Vec2i* pts, Vec2i P) {
+    Vec3f u = Vec3f(pts[2][0] - pts[0][0], pts[1][0] - pts[0][0], pts[0][0] - P[0]) ^ Vec3f(pts[2][1] - pts[0][1], pts[1][1] - pts[0][1], pts[0][1] - P[1]);
+    /* `pts` and `P` has integer value as coordinates
+       so `abs(u[2])` < 1 means `u[2]` is 0, that means
+       triangle is degenerate, in this case return something with negative coordinates */
+    if (std::abs(u.z) < 1) return Vec3f(-1, 1, 1);
+    return Vec3f(1.f - (u.x + u.y) / u.z, u.y / u.z, u.x / u.z);
+}
+
+void triangle(Vec2i* pts, TGAImage& image, TGAColor color) {
+    Vec2i bboxmin(image.get_width() - 1, image.get_height() - 1);
+    Vec2i bboxmax(0, 0);
+    Vec2i clamp(image.get_width() - 1, image.get_height() - 1);
+    for (int i = 0; i < 3; i++) {
+        bboxmin.x = std::max(0, std::min(bboxmin.x, pts[i].x));
+        bboxmin.y = std::max(0, std::min(bboxmin.y, pts[i].y));
+
+        bboxmax.x = std::min(clamp.x, std::max(bboxmax.x, pts[i].x));
+        bboxmax.y = std::min(clamp.y, std::max(bboxmax.y, pts[i].y));
+    }
+    Vec2i P;
+    for (P.x = bboxmin.x; P.x <= bboxmax.x; P.x++) {
+        for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) {
+            Vec3f bc_screen = barycentric(pts, P);
+            if (bc_screen.x < 0 || bc_screen.y < 0 || bc_screen.z < 0) continue;
+            image.set(P.x, P.y, color);
+        }
+    }
+}
+//Row scan 
+void triangle_row_scan(Vec2i t0, Vec2i t1, Vec2i t2, TGAImage& image, TGAColor color) {
     //Ã°ÅÝÅÅÐò,ÊµÏÖ t0.y < t1.y < t2.y
     if (t0.y > t1.y) std::swap(t0, t1);
     if (t0.y > t2.y) std::swap(t0, t2);
@@ -80,15 +110,10 @@ int main(int argc, char** argv) {
     
     TGAImage image(width, height, TGAImage::RGB);
 
-    Vec2i t0[3] = { Vec2i(10, 70),   Vec2i(50, 160),  Vec2i(70, 80) };
-    Vec2i t1[3] = { Vec2i(180, 50),  Vec2i(150, 1),   Vec2i(70, 180) };
-    Vec2i t2[3] = { Vec2i(180, 150), Vec2i(120, 160), Vec2i(130, 180) };
-
-    triangle(t0[0], t0[1], t0[2], image, red);
-    triangle(t1[0], t1[1], t1[2], image, white);
-    triangle(t2[0], t2[1], t2[2], image, green);
+    Vec2i pts[3] = { Vec2i(10,10), Vec2i(100, 30), Vec2i(190, 160) };
+    triangle(pts, image, TGAColor(255, 0, 0));
 
     image.flip_vertically(); // i want to have the origin at the left bottom corner of the image
-    image.write_tga_file("triangle.tga");
+    image.write_tga_file("Lec02_triangle_by_barycentric.tga");
     return 0;
 }
