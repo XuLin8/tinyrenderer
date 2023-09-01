@@ -2,12 +2,14 @@
 #include <cmath>
 #include "tgaimage.h"
 #include "geometry.h"
+#include "model.h"
 
 const TGAColor white = TGAColor(255, 255, 255, 255);
 const TGAColor red = TGAColor(255, 0, 0, 255);
 const TGAColor green = TGAColor(0, 255, 0, 255);
-const int width = 200;
-const int height = 200;
+const int width = 800;
+const int height = 800;
+Model* model = NULL;
 
 //Bresenham
 void Bresenham(int x0, int y0, int x1, int y1, TGAImage& image, TGAColor color) {
@@ -110,10 +112,19 @@ int main(int argc, char** argv) {
     
     TGAImage image(width, height, TGAImage::RGB);
 
-    Vec2i pts[3] = { Vec2i(10,10), Vec2i(100, 30), Vec2i(190, 160) };
-    triangle(pts, image, TGAColor(255, 0, 0));
+    model = new Model("obj/african_head.obj");
 
-    image.flip_vertically(); // i want to have the origin at the left bottom corner of the image
-    image.write_tga_file("Lec02_triangle_by_barycentric.tga");
+    for (int i = 0; i < model->nfaces(); i++) {
+        std::vector<int> face = model->face(i);
+        Vec2i screen_coords[3];
+        for (int j = 0; j < 3; j++) {
+            Vec3f world_coords = model->vert(face[j]);
+            screen_coords[j] = Vec2i((world_coords.x + 1.) * width / 2., (world_coords.y + 1.) * height / 2.);
+        }
+        triangle(screen_coords, image, TGAColor(rand() % 255, rand() % 255, rand() % 255, 255));
+    }
+
+    image.flip_vertically();
+    image.write_tga_file("Lec02_flat_shading.tga");
     return 0;
 }
