@@ -323,19 +323,24 @@ bool TGAImage::flip_horizontally() {
 }
 
 bool TGAImage::flip_vertically() {
-	if (!data) return false;
-	unsigned long bytes_per_line = width * bytespp;
-	unsigned char* line = new unsigned char[bytes_per_line];
-	int half = height >> 1;
-	for (int j = 0; j < half; j++) {
-		unsigned long l1 = j * bytes_per_line;
-		unsigned long l2 = (height - 1 - j) * bytes_per_line;
+	if (!data) return false; // 如果图像数据为空，返回false
+
+	unsigned long bytes_per_line = width * bytespp; // 计算每行的字节数
+	unsigned char* line = new unsigned char[bytes_per_line]; // 临时存储一行图像数据的缓冲区
+
+	int half = height >> 1; // 图像高度的一半，用于计算翻转的中点位置
+	for (int j = 0; j < half; j++) { // 遍历图像的上半部分
+		unsigned long l1 = j * bytes_per_line; // 当前行的起始位置
+		unsigned long l2 = (height - 1 - j) * bytes_per_line; // 对应的下半部分行的起始位置
+
+		// 以下三行代码实现数据的翻转，即上半部分和下半部分交换
 		memmove((void*)line, (void*)(data + l1), bytes_per_line);
 		memmove((void*)(data + l1), (void*)(data + l2), bytes_per_line);
 		memmove((void*)(data + l2), (void*)line, bytes_per_line);
 	}
-	delete[] line;
-	return true;
+
+	delete[] line; // 释放临时存储的缓冲区
+	return true; // 返回true表示成功完成翻转
 }
 
 unsigned char* TGAImage::buffer() {
