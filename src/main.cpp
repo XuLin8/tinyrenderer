@@ -110,21 +110,28 @@ void triangle_row_scan(Vec2i t0, Vec2i t1, Vec2i t2, TGAImage& image, TGAColor c
 
 int main(int argc, char** argv) {
     
+    Vec3f light_dir{ 0,0,-1 };//默认光源
+
     TGAImage image(width, height, TGAImage::RGB);
-
     model = new Model("obj/african_head.obj");
-
     for (int i = 0; i < model->nfaces(); i++) {
         std::vector<int> face = model->face(i);
-        Vec2i screen_coords[3];
+        Vec2i screen_coords[3];//三角形的屏幕坐标
+        Vec3f world_coords[3];//三角形的世界坐标
         for (int j = 0; j < 3; j++) {
-            Vec3f world_coords = model->vert(face[j]);
-            screen_coords[j] = Vec2i((world_coords.x + 1.) * width / 2., (world_coords.y + 1.) * height / 2.);
+            Vec3f v = model->vert(face[j]);
+            screen_coords[j] = Vec2i((v.x + 1.) * width / 2., (v.y + 1.) * height / 2.);//完成屏幕坐标换算
+            world_coords[j] = v;
         }
-        triangle(screen_coords, image, TGAColor(rand() % 255, rand() % 255, rand() % 255, 255));
+        Vec3f n = (world_coords[2] - world_coords[0]) ^ (world_coords[1] - world_coords[0]);//三角形法线
+        n.normalize();//向量单位化
+        float intensity = n * light_dir;//点乘光照得到每个面接受到的光照角度比例
+        if (intensity > 0) {//大于0显示，小于0不显示，并根据点乘出来的强度结果影响颜色
+            triangle(screen_coords, image, TGAColor(intensity * 255, intensity * 255, intensity * 255, 255));
+        }
     }
 
     image.flip_vertically();
-    image.write_tga_file("Lec02_flat_shading.tga");
+    image.write_tga_file("Lec02_flat_shading_with_light.tga");
     return 0;
 }
