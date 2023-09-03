@@ -6,8 +6,10 @@
 #include "tgaimage.h"
 #include <sys/stat.h> // For creating directories on Unix-like systems
 #include <direct.h>   // For creating directories on Windows
+#include <filesystem>  // 包含C++17的文件系统库
 
-const char* folderPath = "imgs/";
+namespace fs = std::filesystem;
+const char* folderPath = "../imgs/";
 
 TGAImage::TGAImage() : data(NULL), width(0), height(0), bytespp(0) {
 }
@@ -165,27 +167,22 @@ bool TGAImage::write_tga_file(const char* filename, bool rle) {
 	unsigned char developer_area_ref[4] = { 0, 0, 0, 0 };
 	unsigned char extension_area_ref[4] = { 0, 0, 0, 0 };
 	unsigned char footer[18] = { 'T','R','U','E','V','I','S','I','O','N','-','X','F','I','L','E','.','\0' };
-	std::ofstream out;
-	std::string imagePath = folderPath + std::string(filename);
+	std::string imagePath = folderPath + std::string(filename);  // 图像文件路径
 
-	out.open(imagePath.c_str(), std::ios::binary);
-	if (!out.is_open()) {
-		//没有folderPath，创建它
-		if (createDirectory(folderPath)) {
-			std::cout << "Directory created successfully." << std::endl;
-
-		}
-		else {
-			std::cerr << "Failed to create directory.Can't open file " << imagePath << "\n";
-			out.close();
+	// 使用C++17的filesystem库检查文件夹是否存在
+	if (!fs::is_directory(folderPath)) {
+		// 文件夹不存在，创建它
+		if (!fs::create_directory(folderPath)) {
+			std::cerr << "Failed to create directory " << folderPath << std::endl;
 			return false;
 		}
+		std::cout << "Directory " << folderPath << " created successfully." << std::endl;
 	}
-	out.close();
+
+	std::ofstream out;
 	out.open(imagePath.c_str(), std::ios::binary);
 	if (!out.is_open()) {
-		std::cerr << "can't open file " << filename << "\n";
-		out.close();
+		std::cerr << "can't open file " << filename << std::endl;
 		return false;
 	}
 	TGA_Header header;

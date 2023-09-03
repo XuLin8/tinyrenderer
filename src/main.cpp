@@ -7,6 +7,7 @@
 const TGAColor white = TGAColor(255, 255, 255, 255);
 const TGAColor red = TGAColor(255, 0, 0, 255);
 const TGAColor green = TGAColor(0, 255, 0, 255);
+const char* ModelPath = "../obj";
 const int width = 800;
 const int height = 800;
 Model* model = NULL;
@@ -109,11 +110,11 @@ void triangle_row_scan(Vec2i t0, Vec2i t1, Vec2i t2, TGAImage& image, TGAColor c
 }
 
 int main(int argc, char** argv) {
-    
+
     Vec3f light_dir{ 0,0,-1 };//默认光源
 
     TGAImage image(width, height, TGAImage::RGB);
-    model = new Model("obj/african_head.obj");
+    model = new Model("../obj/african_head.obj");
     for (int i = 0; i < model->nfaces(); i++) {
         std::vector<int> face = model->face(i);
         Vec2i screen_coords[3];//三角形的屏幕坐标
@@ -132,6 +133,6 @@ int main(int argc, char** argv) {
     }
 
     image.flip_vertically();
-    image.write_tga_file("Lec02_flat_shading_with_light.tga");
+    image.write_tga_file("Lec02_flat_shading_with_light_test.tga");
     return 0;
 }
