@@ -1,5 +1,6 @@
 #include <vector>
 #include <cmath>
+#include <iostream>
 #include "tgaimage.h"
 #include "geometry.h"
 #include "model.h"
@@ -11,6 +12,8 @@ const TGAColor green = TGAColor(0, 255, 0, 255);
 const int width = 800;
 const int height = 800;
 Model* model = NULL;
+Vec3f light_dir{ 0,0,-1 };//默认光源
+TGAImage texture(1024, 1024, TGAImage::RGB);//漫反射贴图
 
 //Bresenham
 void Bresenham(int x0, int y0, int x1, int y1, TGAImage& image, TGAColor color) {
@@ -62,7 +65,7 @@ Vec3f barycentric(Vec3f A, Vec3f B, Vec3f C, Vec3f P) {
     return Vec3f(-1, 1, 1); // in this case generate negative coordinates, it will be thrown away by the rasterizator
 }
 
-void triangle(Vec3f* pts, float* zbuffer, TGAImage& image, TGAColor color) {
+void triangle(Vec3f* pts, Vec2f* uvs, float* zbuffer, TGAImage& image, float intensity) {
     Vec2f bboxmin(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
     Vec2f bboxmax(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
     Vec2f clamp(image.get_width() - 1, image.get_height() - 1);
@@ -81,7 +84,11 @@ void triangle(Vec3f* pts, float* zbuffer, TGAImage& image, TGAColor color) {
             for (int i = 0; i < 3; i++) P.z += pts[i][2] * bc_screen[i];
             if (zbuffer[int(P.x + P.y * width)] < P.z) {
                 zbuffer[int(P.x + P.y * width)] = P.z;
-                image.set(P.x, P.y, color);
+                float u = bc_screen.x * uvs[0].u + bc_screen.y * uvs[1].u + bc_screen.z * uvs[2].u;
+                float v = bc_screen.x * uvs[0].v + bc_screen.y * uvs[1].v + bc_screen.z * uvs[2].v;
+                TGAColor texColor = texture.get(u * texture.get_width(), (1-v) * texture.get_height());
+                image.set(P.x, P.y, TGAColor(texColor.r * intensity, texColor.g * intensity, texColor.b * intensity,255) );
+                //image.set(P.x, P.y, texColor);
             }
         }
     }
@@ -123,32 +130,38 @@ void triangle_row_scan(Vec2i t0, Vec2i t1, Vec2i t2, TGAImage& image, TGAColor c
 }
 
 int main(int argc, char** argv) {
-
-    Vec3f light_dir{ 0,0,-1 };//默认光源
+    const char* filename = "obj/african_head_diffuse.tga";
+    texture.read_tga_file(filename);
+    
 
     TGAImage image(width, height, TGAImage::RGB);
-    model = new Model("../obj/african_head.obj");
+    model = new Model("obj/african_head.obj");
+    
     float* zbuffer = new float[width * height];
     for (int i = width * height; i--; zbuffer[i] = -std::numeric_limits<float>::max());//初始化zbuffer每个像素为负无穷
 
     for (int i = 0; i < model->nfaces(); i++) {
         std::vector<int> face = model->face(i);
+        std::vector<int> texIndex = model->uv_indices(i);
         Vec3f world_coords[3];//三角形的世界坐标
         Vec3f pts[3];
+        Vec2f uvs[3];
         for (int j = 0; j < 3; j++) {
             Vec3f v = model->vert(face[j]);
+            Vec2f uv = model->uv(texIndex[j]);
             world_coords[j] = v;
             pts[j] = world2screen(v);
+            uvs[j] = uv;
         }
         Vec3f n = (world_coords[2] - world_coords[0]) ^ (world_coords[1] - world_coords[0]);//三角形法线
         n.normalize();//向量单位化
         float intensity = n * light_dir;//点乘光照得到每个面接受到的光照角度比例
         if (intensity > 0) {//大于0显示，小于0不显示，并根据点乘出来的强度结果影响颜色
-            triangle(pts, zbuffer, image, TGAColor(intensity * 255, intensity * 255, intensity * 255, 255));
+            triangle(pts, uvs, zbuffer, image, intensity);
         }
     }
 
     image.flip_vertically();
-    image.write_tga_file("Lec03_zbuffer.tga");
+    image.write_tga_file("Lec03_zbuffer_diffuse_light.tga");
     return 0;
 }
