@@ -80,15 +80,20 @@ void triangle(Vec3f* pts, Vec2f* uvs, float* zbuffer, TGAImage& image, float int
         for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) {
             Vec3f bc_screen = barycentric(pts[0], pts[1], pts[2], P);
             if (bc_screen.x < 0 || bc_screen.y < 0 || bc_screen.z < 0) continue;
+
             P.z = 0;
-            for (int i = 0; i < 3; i++) P.z += pts[i][2] * bc_screen[i];
+            for (int i = 0; i < 3; i++) 
+                P.z += pts[i][2] * bc_screen[i];
+
             if (zbuffer[int(P.x + P.y * width)] < P.z) {
                 zbuffer[int(P.x + P.y * width)] = P.z;
-                float u = bc_screen.x * uvs[0].u + bc_screen.y * uvs[1].u + bc_screen.z * uvs[2].u;
-                float v = bc_screen.x * uvs[0].v + bc_screen.y * uvs[1].v + bc_screen.z * uvs[2].v;
+                float u = 0, v = 0;
+                for (int i = 0; i < 3; i++) {
+                    u += bc_screen[i] * uvs[i].u;
+                    v += bc_screen[i] * uvs[i].v;
+                }
                 TGAColor texColor = texture.get(u * texture.get_width(), (1-v) * texture.get_height());
-                image.set(P.x, P.y, TGAColor(texColor.r * intensity, texColor.g * intensity, texColor.b * intensity,255) );
-                //image.set(P.x, P.y, texColor);
+                image.set(P.x, P.y, TGAColor(texColor.r * intensity, texColor.g * intensity, texColor.b * intensity, 255));
             }
         }
     }
