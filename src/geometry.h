@@ -1,68 +1,211 @@
 #pragma once
-#ifndef __GEOMETRY_H__
-#define __GEOMETRY_H__
-
 #include <cmath>
+#include <cassert>
+#include <iostream>
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-template <class t> struct Vec2 {
-	//这里的 u, v 和 x, y 实际上是用不同的方式来表示相同的概念，即二维向量的分量。
-	//你可以根据使用场景选择使用哪种表示方式。
-	//比如，如果在处理纹理坐标时，你可能更倾向于使用 u, v 表示，而在处理几何坐标时，你可能更倾向于使用 x, y 表示。
-	//而 raw 数组则提供了一种通用的、直接操作底层数据的方式。
-	union {
-		struct { t u, v; };
-		struct { t x, y; };
-		t raw[2];
-	};
-	Vec2() : u(0), v(0) {}
-	Vec2(t _u, t _v) : u(_u), v(_v) {}
-	t& operator[](int index) { return raw[index]; }
-	const t& operator[](int index) const { return raw[index]; }
-	inline Vec2<t> operator +(const Vec2<t>& V) const { return Vec2<t>(u + V.u, v + V.v); }
-	inline Vec2<t> operator -(const Vec2<t>& V) const { return Vec2<t>(u - V.u, v - V.v); }
-	inline Vec2<t> operator *(float f)          const { return Vec2<t>(u * f, v * f); }
-	//这样的友元函数声明是为了允许类外部的函数访问类的私有成员，以实现自定义的输出格式。
-	//Vec2<float> v(1.0f, 2.0f);
-	//std::cout << v;  // 将 v 输出到标准输出流
-	template <class > friend std::ostream& operator<<(std::ostream& s, Vec2<t>& v);
-
+template<int n> struct vec {
+    double data[n] = { 0 };
+    double& operator[](const int i) { assert(i >= 0 && i < n); return data[i]; }
+    double  operator[](const int i) const { assert(i >= 0 && i < n); return data[i]; }
+    double norm2() const { return *this * *this; }
+    double norm()  const { return std::sqrt(norm2()); }
 };
 
-template <class t> struct Vec3 {
-	union {
-		struct { t x, y, z; };
-		struct { t ivert, iuv, inorm; };
-		t raw[3];
-	};
-	Vec3() : x(0), y(0), z(0) {}
-	Vec3(t _x, t _y, t _z) : x(_x), y(_y), z(_z) {}
-	t& operator[](int index) { return raw[index]; }
-	const t& operator[](int index) const { return raw[index]; }
-	inline Vec3<t> operator ^(const Vec3<t>& v) const { return Vec3<t>(y * v.z - z * v.y, z * v.x - x * v.z, x * v.y - y * v.x); }
-	inline Vec3<t> operator +(const Vec3<t>& v) const { return Vec3<t>(x + v.x, y + v.y, z + v.z); }
-	inline Vec3<t> operator -(const Vec3<t>& v) const { return Vec3<t>(x - v.x, y - v.y, z - v.z); }
-	inline Vec3<t> operator *(float f)          const { return Vec3<t>(x * f, y * f, z * f); }
-	inline t       operator *(const Vec3<t>& v) const { return x * v.x + y * v.y + z * v.z; }
-	float norm() const { return std::sqrt(x * x + y * y + z * z); }
-	Vec3<t>& normalize(t l = 1) { *this = (*this) * (l / norm()); return *this; }
-	template <class > friend std::ostream& operator<<(std::ostream& s, Vec3<t>& v);
+template<int n> double operator*(const vec<n>& lhs, const vec<n>& rhs) {
+    double ret = 0;
+    for (int i = n; i--; ret += lhs[i] * rhs[i]);
+    return ret;
+}
+
+template<int n> vec<n> operator+(const vec<n>& lhs, const vec<n>& rhs) {
+    vec<n> ret = lhs;
+    for (int i = n; i--; ret[i] += rhs[i]);
+    return ret;
+}
+
+template<int n> vec<n> operator-(const vec<n>& lhs, const vec<n>& rhs) {
+    vec<n> ret = lhs;
+    for (int i = n; i--; ret[i] -= rhs[i]);
+    return ret;
+}
+
+template<int n> vec<n> operator*(const double& rhs, const vec<n>& lhs) {
+    vec<n> ret = lhs;
+    for (int i = n; i--; ret[i] *= rhs);
+    return ret;
+}
+
+template<int n> vec<n> operator*(const vec<n>& lhs, const double& rhs) {
+    vec<n> ret = lhs;
+    for (int i = n; i--; ret[i] *= rhs);
+    return ret;
+}
+
+template<int n> vec<n> operator/(const vec<n>& lhs, const double& rhs) {
+    vec<n> ret = lhs;
+    for (int i = n; i--; ret[i] /= rhs);
+    return ret;
+}
+
+template<int n1, int n2> vec<n1> embed(const vec<n2>& v, double fill = 1) {
+    vec<n1> ret;
+    for (int i = n1; i--; ret[i] = (i < n2 ? v[i] : fill));
+    return ret;
+}
+
+template<int n1, int n2> vec<n1> proj(const vec<n2>& v) {
+    vec<n1> ret;
+    for (int i = n1; i--; ret[i] = v[i]);
+    return ret;
+}
+
+template<int n> std::ostream& operator<<(std::ostream& out, const vec<n>& v) {
+    for (int i = 0; i < n; i++) out << v[i] << " ";
+    return out;
+}
+
+template<> struct vec<2> {
+    double x = 0, y = 0;
+    double& operator[](const int i) { assert(i >= 0 && i < 2); return i ? y : x; }
+    double  operator[](const int i) const { assert(i >= 0 && i < 2); return i ? y : x; }
+    double norm2() const { return *this * *this; }
+    double norm()  const { return std::sqrt(norm2()); }
+    vec<2> normalized() { return (*this) / norm(); }
 };
 
-typedef Vec2<float> Vec2f;
-typedef Vec2<int>   Vec2i;
-typedef Vec3<float> Vec3f;
-typedef Vec3<int>   Vec3i;
+template<> struct vec<3> {
+    double x = 0, y = 0, z = 0;
+    double& operator[](const int i) { assert(i >= 0 && i < 3); return i ? (1 == i ? y : z) : x; }
+    double  operator[](const int i) const { assert(i >= 0 && i < 3); return i ? (1 == i ? y : z) : x; }
+    double norm2() const { return *this * *this; }
+    double norm()  const { return std::sqrt(norm2()); }
+    vec<3> normalized() { return (*this) / norm(); }
+};
 
-template <class t> std::ostream& operator<<(std::ostream& s, Vec2<t>& v) {
-	s << "(" << v.x << ", " << v.y << ")\n";
-	return s;
+typedef vec<2> vec2;
+typedef vec<3> vec3;
+typedef vec<4> vec4;
+vec3 cross(const vec3& v1, const vec3& v2);
+
+template<int n> struct dt;
+
+template<int nrows, int ncols> struct mat {
+    vec<ncols> rows[nrows] = { {} };
+
+    vec<ncols>& operator[] (const int idx) { assert(idx >= 0 && idx < nrows); return rows[idx]; }
+    const vec<ncols>& operator[] (const int idx) const { assert(idx >= 0 && idx < nrows); return rows[idx]; }
+
+    vec<nrows> col(const int idx) const {
+        assert(idx >= 0 && idx < ncols);
+        vec<nrows> ret;
+        for (int i = nrows; i--; ret[i] = rows[i][idx]);
+        return ret;
+    }
+
+    void set_col(const int idx, const vec<nrows>& v) {
+        assert(idx >= 0 && idx < ncols);
+        for (int i = nrows; i--; rows[i][idx] = v[i]);
+    }
+
+    static mat<nrows, ncols> identity() {
+        mat<nrows, ncols> ret;
+        for (int i = nrows; i--; )
+            for (int j = ncols; j--; ret[i][j] = (i == j));
+        return ret;
+    }
+
+    double det() const {
+        return dt<ncols>::det(*this);
+    }
+
+    mat<nrows - 1, ncols - 1> get_minor(const int row, const int col) const {
+        mat<nrows - 1, ncols - 1> ret;
+        for (int i = nrows - 1; i--; )
+            for (int j = ncols - 1; j--; ret[i][j] = rows[i < row ? i : i + 1][j < col ? j : j + 1]);
+        return ret;
+    }
+
+    double cofactor(const int row, const int col) const {
+        return get_minor(row, col).det() * ((row + col) % 2 ? -1 : 1);
+    }
+
+    mat<nrows, ncols> adjugate() const {
+        mat<nrows, ncols> ret;
+        for (int i = nrows; i--; )
+            for (int j = ncols; j--; ret[i][j] = cofactor(i, j));
+        return ret;
+    }
+
+    mat<nrows, ncols> invert_transpose() const {
+        mat<nrows, ncols> ret = adjugate();
+        return ret / (ret[0] * rows[0]);
+    }
+
+    mat<nrows, ncols> invert() const {
+        return invert_transpose().transpose();
+    }
+
+    mat<ncols, nrows> transpose() const {
+        mat<ncols, nrows> ret;
+        for (int i = ncols; i--; ret[i] = this->col(i));
+        return ret;
+    }
+};
+
+template<int nrows, int ncols> vec<nrows> operator*(const mat<nrows, ncols>& lhs, const vec<ncols>& rhs) {
+    vec<nrows> ret;
+    for (int i = nrows; i--; ret[i] = lhs[i] * rhs);
+    return ret;
 }
 
-template <class t> std::ostream& operator<<(std::ostream& s, Vec3<t>& v) {
-	s << "(" << v.x << ", " << v.y << ", " << v.z << ")\n";
-	return s;
+template<int R1, int C1, int C2>mat<R1, C2> operator*(const mat<R1, C1>& lhs, const mat<C1, C2>& rhs) {
+    mat<R1, C2> result;
+    for (int i = R1; i--; )
+        for (int j = C2; j--; result[i][j] = lhs[i] * rhs.col(j));
+    return result;
 }
 
-#endif //__GEOMETRY_H__
+template<int nrows, int ncols>mat<nrows, ncols> operator*(const mat<nrows, ncols>& lhs, const double& val) {
+    mat<nrows, ncols> result;
+    for (int i = nrows; i--; result[i] = lhs[i] * val);
+    return result;
+}
+
+template<int nrows, int ncols>mat<nrows, ncols> operator/(const mat<nrows, ncols>& lhs, const double& val) {
+    mat<nrows, ncols> result;
+    for (int i = nrows; i--; result[i] = lhs[i] / val);
+    return result;
+}
+
+template<int nrows, int ncols>mat<nrows, ncols> operator+(const mat<nrows, ncols>& lhs, const mat<nrows, ncols>& rhs) {
+    mat<nrows, ncols> result;
+    for (int i = nrows; i--; )
+        for (int j = ncols; j--; result[i][j] = lhs[i][j] + rhs[i][j]);
+    return result;
+}
+
+template<int nrows, int ncols>mat<nrows, ncols> operator-(const mat<nrows, ncols>& lhs, const mat<nrows, ncols>& rhs) {
+    mat<nrows, ncols> result;
+    for (int i = nrows; i--; )
+        for (int j = ncols; j--; result[i][j] = lhs[i][j] - rhs[i][j]);
+    return result;
+}
+
+template<int nrows, int ncols> std::ostream& operator<<(std::ostream& out, const mat<nrows, ncols>& m) {
+    for (int i = 0; i < nrows; i++) out << m[i] << std::endl;
+    return out;
+}
+
+template<int n> struct dt {
+    static double det(const mat<n, n>& src) {
+        double ret = 0;
+        for (int i = n; i--; ret += src[0][i] * src.cofactor(0, i));
+        return ret;
+    }
+};
+
+template<> struct dt<1> {
+    static double det(const mat<1, 1>& src) {
+        return src[0][0];
+    }
+};

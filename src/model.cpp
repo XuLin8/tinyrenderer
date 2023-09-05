@@ -16,13 +16,13 @@ Model::Model(const char* filename) : verts_(), faces_() {
         char trash;
         if (!line.compare(0, 2, "v ")) {
             iss >> trash;
-            Vec3f v;
+            vec3 v;
             for (int i = 0; i < 3; i++) iss >> v[i];
             verts_.push_back(v);
         }
         else if (!line.compare(0, 3, "vt ")) {
             iss >> trash >> trash;
-            Vec2f uv;
+            vec2 uv;
             for (int i = 0; i < 2; i++) iss >> uv[i];
             uvs_.push_back(uv);
         }
@@ -59,11 +59,11 @@ std::vector<int> Model::face(int idx) {
     return faces_[idx];
 }
 
-Vec3f Model::vert(int i) {
+vec3 Model::vert(int i) {
     return verts_[i];
 }
 
-Vec2f Model::uv(int i) {
+vec2 Model::uv(int i) {
     return uvs_[i];
 }
 

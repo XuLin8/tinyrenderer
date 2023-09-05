@@ -12,7 +12,7 @@ const TGAColor green = TGAColor(0, 255, 0, 255);
 const int width = 800;
 const int height = 800;
 Model* model = NULL;
-Vec3f light_dir{ 0,0,-1 };//默认光源
+vec3 light_dir{ 0,0,-1 };//默认光源
 TGAImage texture(1024, 1024, TGAImage::RGB);//漫反射贴图
 
 //Bresenham
@@ -47,38 +47,38 @@ void Bresenham(int x0, int y0, int x1, int y1, TGAImage& image, TGAColor color) 
     }
 }
 
-void line(const Vec2i& p1, const Vec2i& p2, TGAImage& image, TGAColor color)
+void line(const vec2& p1, const vec2& p2, TGAImage& image, TGAColor color)
 {
     Bresenham(p1.x, p1.y, p2.x, p2.y, image, color);
 }
 
-Vec3f barycentric(Vec3f A, Vec3f B, Vec3f C, Vec3f P) {
-    Vec3f s[2];
+vec3 barycentric(vec3 A, vec3 B, vec3 C, vec3 P) {
+    vec3 s[2];
     for (int i = 2; i--; ) {
         s[i][0] = C[i] - A[i];
         s[i][1] = B[i] - A[i];
         s[i][2] = A[i] - P[i];
     }
-    Vec3f u = s[0] ^ s[1];
+    vec3 u = cross(s[0], s[1]);
     if (std::abs(u[2]) > 1e-2) // dont forget that u[2] is integer. If it is zero then triangle ABC is degenerate
-        return Vec3f(1.f - (u.x + u.y) / u.z, u.y / u.z, u.x / u.z);
-    return Vec3f(-1, 1, 1); // in this case generate negative coordinates, it will be thrown away by the rasterizator
+        return vec<3>{1.f - (u.x + u.y) / u.z, u.y / u.z, u.x / u.z};
+    return vec<3>{-1, 1, 1}; // in this case generate negative coordinates, it will be thrown away by the rasterizator
 }
 
-void triangle(Vec3f* pts, Vec2f* uvs, float* zbuffer, TGAImage& image, float intensity) {
-    Vec2f bboxmin(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
-    Vec2f bboxmax(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
-    Vec2f clamp(image.get_width() - 1, image.get_height() - 1);
+void triangle(vec3* pts, vec2* uvs, float* zbuffer, TGAImage& image, float intensity) {
+    vec<2> bboxmin{ std::numeric_limits<float>::max(), std::numeric_limits<float>::max() };
+    vec<2> bboxmax{ -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max() };
+    vec<2> clamp{ image.get_width() - 1, image.get_height() - 1 };
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 2; j++) {
-            bboxmin[j] = std::max(0.f, std::min(bboxmin[j], pts[i][j]));
+            bboxmin[j] = std::min(bboxmin[j], pts[i][j])>0.f? std::min(bboxmin[j], pts[i][j]):0.f;
             bboxmax[j] = std::min(clamp[j], std::max(bboxmax[j], pts[i][j]));
         }
     }
-    Vec3f P;
+    vec3 P;
     for (P.x = bboxmin.x; P.x <= bboxmax.x; P.x++) {
         for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) {
-            Vec3f bc_screen = barycentric(pts[0], pts[1], pts[2], P);
+            vec3 bc_screen = barycentric(pts[0], pts[1], pts[2], P);
             if (bc_screen.x < 0 || bc_screen.y < 0 || bc_screen.z < 0) continue;
 
             P.z = 0;
@@ -89,8 +89,8 @@ void triangle(Vec3f* pts, Vec2f* uvs, float* zbuffer, TGAImage& image, float int
                 zbuffer[int(P.x + P.y * width)] = P.z;
                 float u = 0, v = 0;
                 for (int i = 0; i < 3; i++) {
-                    u += bc_screen[i] * uvs[i].u;
-                    v += bc_screen[i] * uvs[i].v;
+                    u += bc_screen[i] * uvs[i].x;
+                    v += bc_screen[i] * uvs[i].y;
                 }
                 TGAColor texColor = texture.get(u * texture.get_width(), (1-v) * texture.get_height());
                 image.set(P.x, P.y, TGAColor(texColor.r * intensity, texColor.g * intensity, texColor.b * intensity, 255));
@@ -99,12 +99,16 @@ void triangle(Vec3f* pts, Vec2f* uvs, float* zbuffer, TGAImage& image, float int
     }
 }
 
-Vec3f world2screen(Vec3f v) {
-    return Vec3f(int((v.x + 1.) * width / 2. + .5), int((v.y + 1.) * height / 2. + .5), v.z);
+vec3 world2screen(vec3 v) {
+    vec3 out;
+    out.x = int((v.x + 1.) * width / 2. + .5);
+    out.y = int((v.y + 1.) * height / 2. + .5);
+    out.z = v.z;
+    return out;
 }
 
 //Row scan 
-void triangle_row_scan(Vec2i t0, Vec2i t1, Vec2i t2, TGAImage& image, TGAColor color) {
+void triangle_row_scan(vec2 t0, vec2 t1, vec2 t2, TGAImage& image, TGAColor color) {
     //冒泡排序,实现 t0.y < t1.y < t2.y
     if (t0.y > t1.y) std::swap(t0, t1);
     if (t0.y > t2.y) std::swap(t0, t2);
@@ -114,8 +118,8 @@ void triangle_row_scan(Vec2i t0, Vec2i t1, Vec2i t2, TGAImage& image, TGAColor c
         int segment_height = t1.y - t0.y + 1;	//t0到t1的距离包括t1这一行 
         float alpha = (float)(y - t0.y) / total_height; 	// alpha为y轴方向上，绘制的第y行占总高度的比例
         float beta = (float)(y - t0.y) / segment_height; 	// 当心除0错，beta为y轴方向上，绘制的第y行占t1到t的高度的比例
-        Vec2i A = t0 + (t2 - t0) * alpha;
-        Vec2i B = t0 + (t1 - t0) * beta;
+        vec2 A = t0 + (t2 - t0) * alpha;
+        vec2 B = t0 + (t1 - t0) * beta;
         if (A.x > B.x) std::swap(A, B); 		 	//从左到右绘制
         for (int j = A.x; j <= B.x; j++) {
             image.set(j, y, color); 			// 注意，由于int强制转换t0.y+i！=A.y
@@ -125,8 +129,8 @@ void triangle_row_scan(Vec2i t0, Vec2i t1, Vec2i t2, TGAImage& image, TGAColor c
         int segment_height = t2.y - t1.y + 1;
         float alpha = (float)(y - t0.y) / total_height;
         float beta = (float)(y - t1.y) / segment_height; // 当心除0错
-        Vec2i A = t0 + (t2 - t0) * alpha;
-        Vec2i B = t1 + (t2 - t1) * beta;
+        vec2 A = t0 + (t2 - t0) * alpha;
+        vec2 B = t1 + (t2 - t1) * beta;
         if (A.x > B.x) std::swap(A, B);
         for (int j = A.x; j <= B.x; j++) {
             image.set(j, y, color); 			// 注意，由于int强制转换t0.y+i！=A.y
@@ -148,19 +152,18 @@ int main(int argc, char** argv) {
     for (int i = 0; i < model->nfaces(); i++) {
         std::vector<int> face = model->face(i);
         std::vector<int> texIndex = model->uv_indices(i);
-        Vec3f world_coords[3];//三角形的世界坐标
-        Vec3f pts[3];
-        Vec2f uvs[3];
+        vec3 world_coords[3];//三角形的世界坐标
+        vec3 pts[3];
+        vec2 uvs[3];
         for (int j = 0; j < 3; j++) {
-            Vec3f v = model->vert(face[j]);
-            Vec2f uv = model->uv(texIndex[j]);
+            vec3 v = model->vert(face[j]);
+            vec2 uv = model->uv(texIndex[j]);
             world_coords[j] = v;
             pts[j] = world2screen(v);
             uvs[j] = uv;
         }
-        Vec3f n = (world_coords[2] - world_coords[0]) ^ (world_coords[1] - world_coords[0]);//三角形法线
-        n.normalize();//向量单位化
-        float intensity = n * light_dir;//点乘光照得到每个面接受到的光照角度比例
+        vec3 n = cross(world_coords[2] - world_coords[0] , world_coords[1] - world_coords[0]);//三角形法线
+        float intensity = n.normalized() * light_dir;//向量单位化,点乘光照得到每个面接受到的光照角度比例
         if (intensity > 0) {//大于0显示，小于0不显示，并根据点乘出来的强度结果影响颜色
             triangle(pts, uvs, zbuffer, image, intensity);
         }
