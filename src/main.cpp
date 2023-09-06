@@ -8,11 +8,15 @@
 const TGAColor white = TGAColor(255, 255, 255, 255);
 const TGAColor red = TGAColor(255, 0, 0, 255);
 const TGAColor green = TGAColor(0, 255, 0, 255);
-
+const TGAColor blue = TGAColor(0, 0, 255, 255);
+const TGAColor yellow = TGAColor(255, 255, 0, 255);
+const float M_PI = 3.14159265358979;
 const int width = 800;
 const int height = 800;
+const int depth  = 255;
 Model* model = NULL;
 vec3 light_dir{ 0,0,-1 };//默认光源
+TGAImage image(width, height, TGAImage::RGB);//结果
 TGAImage texture(1024, 1024, TGAImage::RGB);//漫反射贴图
 
 //Bresenham
@@ -51,7 +55,29 @@ void line(const vec2& p1, const vec2& p2, TGAImage& image, TGAColor color)
 {
     Bresenham(p1.x, p1.y, p2.x, p2.y, image, color);
 }
+void line(vec3 p0, vec3 p1, TGAImage& image, TGAColor color) {
+    bool steep = false;
+    if (std::abs(p0.x - p1.x) < std::abs(p0.y - p1.y)) {
+        std::swap(p0.x, p0.y);
+        std::swap(p1.x, p1.y);
+        steep = true;
+    }
+    if (p0.x > p1.x) {
+        std::swap(p0, p1);
+    }
 
+    for (int x = p0.x; x <= p1.x; x++) {
+        float t = (x - p0.x) / (float)(p1.x - p0.x);
+        int y = p0.y * (1. - t) + p1.y * t + .5;
+        if (steep) {
+            image.set(y, x, color);
+        }
+        else {
+            image.set(x, y, color);
+        }
+    }
+}
+// 重心坐标系数
 vec3 barycentric(vec3 A, vec3 B, vec3 C, vec3 P) {
     vec3 s[2];
     for (int i = 2; i--; ) {
@@ -65,6 +91,7 @@ vec3 barycentric(vec3 A, vec3 B, vec3 C, vec3 P) {
     return vec<3>{-1, 1, 1}; // in this case generate negative coordinates, it will be thrown away by the rasterizator
 }
 
+// 三角形绘制（屏幕点集，uv集，zbuffer,输出图像,光照强度）
 void triangle(vec3* pts, vec2* uvs, float* zbuffer, TGAImage& image, float intensity) {
     vec<2> bboxmin{ std::numeric_limits<float>::max(), std::numeric_limits<float>::max() };
     vec<2> bboxmax{ -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max() };
@@ -99,6 +126,7 @@ void triangle(vec3* pts, vec2* uvs, float* zbuffer, TGAImage& image, float inten
     }
 }
 
+// 世界坐标转屏幕坐标,[-1,1]映射到[0.5, width/height + 0.5]
 vec3 world2screen(vec3 v) {
     vec3 out;
     out.x = int((v.x + 1.) * width / 2. + .5);
@@ -138,14 +166,12 @@ void triangle_row_scan(vec2 t0, vec2 t1, vec2 t2, TGAImage& image, TGAColor colo
     }
 }
 
-int main(int argc, char** argv) {
+void Lec03() {
     const char* filename = "obj/african_head_diffuse.tga";
     texture.read_tga_file(filename);
-    
 
-    TGAImage image(width, height, TGAImage::RGB);
     model = new Model("obj/african_head.obj");
-    
+
     float* zbuffer = new float[width * height];
     for (int i = width * height; i--; zbuffer[i] = -std::numeric_limits<float>::max());//初始化zbuffer每个像素为负无穷
 
@@ -162,14 +188,122 @@ int main(int argc, char** argv) {
             pts[j] = world2screen(v);
             uvs[j] = uv;
         }
-        vec3 n = cross(world_coords[2] - world_coords[0] , world_coords[1] - world_coords[0]);//三角形法线
+        vec3 n = cross(world_coords[2] - world_coords[0], world_coords[1] - world_coords[0]);//三角形法线
         float intensity = n.normalized() * light_dir;//向量单位化,点乘光照得到每个面接受到的光照角度比例
         if (intensity > 0) {//大于0显示，小于0不显示，并根据点乘出来的强度结果影响颜色
             triangle(pts, uvs, zbuffer, image, intensity);
         }
     }
 
+}
+vec3 m2v(mat<4, 4> m) {
+    return vec3{ m[0][0] / m[3][0], m[1][0] / m[3][0], m[2][0] / m[3][0] };
+}
+mat<4, 4> v2m(vec3 v) {
+    mat<4,4> m;
+    m[0][0] = v.x;
+    m[1][0] = v.y;
+    m[2][0] = v.z;
+    m[3][0] = 1.f;
+    return m;
+}
+
+mat<4,4> viewport(int x, int y, int w, int h) {
+    mat<4, 4> m;
+    m = m.identity();
+    m[0][3] = x + w / 2.f;
+    m[1][3] = y + h / 2.f;
+    m[2][3] = depth / 2.f;
+
+    m[0][0] = w / 2.f;
+    m[1][1] = h / 2.f;
+    m[2][2] = depth / 2.f;
+    return m;
+}
+
+mat<4, 4> translation(vec3 v) {
+    mat<4, 4> Tr;
+    Tr = Tr.identity();
+    Tr[0][3] = v.x;
+    Tr[1][3] = v.y;
+    Tr[2][3] = v.z;
+    return Tr;
+}
+
+mat<4, 4> zoom(float factor) {
+    mat<4, 4> Z;
+    Z = Z.identity();
+    Z[0][0] = Z[1][1] = Z[2][2] = factor;
+    return Z;
+}
+
+mat<4, 4> rotation_x(float cosangle, float sinangle) {
+    mat<4, 4> R;
+    R = R.identity();
+    R[1][1] = R[2][2] = cosangle;
+    R[1][2] = -sinangle;
+    R[2][1] = sinangle;
+    return R;
+}
+
+mat<4, 4> rotation_y(float cosangle, float sinangle) {
+    mat<4, 4> R;
+    R = R.identity();
+    R[0][0] = R[2][2] = cosangle;
+    R[0][2] = sinangle;
+    R[2][0] = -sinangle;
+    return R;
+}
+
+mat<4, 4> rotation_z(float cosangle, float sinangle) {
+    mat<4, 4> R;
+    R = R.identity();
+    R[0][0] = R[1][1] = cosangle;
+    R[0][1] = -sinangle;
+    R[1][0] = sinangle;
+    return R;
+}
+void Lec04() {
+    model = new Model("obj/cube.obj");
+    mat<4,4> VP = viewport(width / 4, width / 4, width / 2, height / 2);
+    { // draw the axes
+        vec3 x{ 1.f, 0.f, 0.f }, y{ 0.f, 1.f, 0.f }, o{ 0.f, 0.f, 0.f };
+        o = m2v(VP * v2m(o));
+        x = m2v(VP * v2m(x));
+        y = m2v(VP * v2m(y));
+        line(o, x, image, red);
+        line(o, y, image, green);
+    }
+    for (int i = 0; i < model->nfaces(); i++) {
+        std::vector<int> face = model->face(i);
+        for (int j = 0; j < (int)face.size(); j++) {
+            vec3 wp0 = model->vert(face[j]);
+            vec3 wp1 = model->vert(face[(j + 1) % face.size()]);
+
+            { // draw the original model
+                vec3 sp0 = m2v(VP * v2m(wp0));
+                vec3 sp1 = m2v(VP * v2m(wp1));
+                line(sp0, sp1, image, white);
+            }
+            { // draw the deformed model
+                mat<4, 4> T;
+                T = zoom(1.5);
+                /*T = T.identity();
+                T[0][1] = 0.333;
+                T = translation(vec<3>{ .33, .5, 0 })*rotation_z(cos(10.*M_PI/180.), sin(10.*M_PI/180.));*/
+                vec3 sp0 = m2v(VP * T * v2m(wp0));
+                vec3 sp1 = m2v(VP * T * v2m(wp1));
+                line(sp0, sp1, image, yellow);
+            }
+        }
+        break;
+    }
+}
+
+int main(int argc, char** argv) {
+    //Lec03();
+    Lec04();
     image.flip_vertically();
-    image.write_tga_file("Lec03_zbuffer_diffuse_light.tga");
+    image.write_tga_file("Lec04 pic01.tga");
     return 0;
 }
