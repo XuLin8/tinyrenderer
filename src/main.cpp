@@ -287,10 +287,10 @@ void Lec04() {
             }
             { // draw the deformed model
                 mat<4, 4> T;
-                T = zoom(1.5);
-                /*T = T.identity();
+                //T = zoom(1.5);
+                T = T.identity();
                 T[0][1] = 0.333;
-                T = translation(vec<3>{ .33, .5, 0 })*rotation_z(cos(10.*M_PI/180.), sin(10.*M_PI/180.));*/
+                //T = translation(vec<3>{ .33, .5, 0 })*rotation_z(cos(10.*M_PI/180.), sin(10.*M_PI/180.));
                 vec3 sp0 = m2v(VP * T * v2m(wp0));
                 vec3 sp1 = m2v(VP * T * v2m(wp1));
                 line(sp0, sp1, image, yellow);
@@ -304,6 +304,6 @@ int main(int argc, char** argv) {
     //Lec03();
     Lec04();
     image.flip_vertically();
-    image.write_tga_file("Lec04 pic01.tga");
+    image.write_tga_file("Lec04 pic02.tga");
     return 0;
 }
