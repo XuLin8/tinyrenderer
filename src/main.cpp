@@ -19,6 +19,8 @@ vec3 light_dir{ 0,0,-1 };//默认光源
 TGAImage image(width, height, TGAImage::RGB);//结果
 TGAImage texture(1024, 1024, TGAImage::RGB);//漫反射贴图
 
+vec3 camera{ 0,0,3 };
+
 //Bresenham
 void Bresenham(int x0, int y0, int x1, int y1, TGAImage& image, TGAColor color) {
     bool steep = false;
@@ -120,6 +122,7 @@ void triangle(vec3* pts, vec2* uvs, float* zbuffer, TGAImage& image, float inten
                     v += bc_screen[i] * uvs[i].y;
                 }
                 TGAColor texColor = texture.get(u * texture.get_width(), (1-v) * texture.get_height());
+                //TGAColor texColor(255, 255, 255, 255);
                 image.set(P.x, P.y, TGAColor(texColor.r * intensity, texColor.g * intensity, texColor.b * intensity, 255));
             }
         }
@@ -302,8 +305,42 @@ void Lec04() {
 
 int main(int argc, char** argv) {
     //Lec03();
-    Lec04();
+    //Lec04();
+    const char* filename = "obj/african_head_diffuse.tga";
+    texture.read_tga_file(filename);
+
+    model = new Model("obj/african_head.obj");
+
+    float* zbuffer = new float[width * height];
+    for (int i = width * height; i--; zbuffer[i] = -std::numeric_limits<float>::max());//初始化zbuffer每个像素为负无穷
+
+    mat<4, 4> Projection; Projection = Projection.identity();
+    Projection[3][2] = -1.f / camera.z;
+    mat<4, 4> ViewPort = viewport(width / 8, height / 8, width * 3 / 4, height * 3 / 4);
+
+    for (int i = 0; i < model->nfaces(); i++) {
+        std::vector<int> face = model->face(i);
+        std::vector<int> texIndex = model->uv_indices(i);
+        vec3 world_coords[3];//三角形的世界坐标
+        vec3 pts[3];
+        for (int j = 0; j < 3; j++) {
+            vec3 v = model->vert(face[j]);
+            pts[j] = m2v(ViewPort * Projection * v2m(v));
+            world_coords[j] = v;
+        }
+        vec3 n = cross(world_coords[2] - world_coords[0], world_coords[1] - world_coords[0]);//三角形法线
+        float intensity = n.normalized() * light_dir;//向量单位化,点乘光照得到每个面接受到的光照角度比例
+        if (intensity > 0) {//大于0显示，小于0不显示，并根据点乘出来的强度结果影响颜色
+            vec2 uvs[3];
+            for (int j = 0; j < 3; j++) {
+                vec2 uv = model->uv(texIndex[j]);
+                uvs[j] = uv;
+            }
+            triangle(pts, uvs, zbuffer, image, intensity);
+        }
+    }
+
     image.flip_vertically();
-    image.write_tga_file("Lec04 pic03.tga");
+    image.write_tga_file("Lec04 Perspective_Model.tga");
     return 0;
 }
