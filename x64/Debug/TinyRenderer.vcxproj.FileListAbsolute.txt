@@ -1,1 +1,0 @@
-D:\Dev\tinyRenderer\x64\Debug\TinyRenderer.exe
